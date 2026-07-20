@@ -1,5 +1,5 @@
 import numpy as np
-
+import matplotlib.pyplot as plt
 from typing import List, Tuple
 
 
@@ -112,7 +112,87 @@ def constant_cosine_reset(length_constant, length_ring, lpad=0, rpad=0, amp=1, d
     timesteps = np.array([dt * i for i in range(total_length)])
     return timesteps, pulse
 
+def double_square(
+    t1: int,
+    t2: int,
+    lpad: int,
+    rpad: int,
+    A: int,
+    B: int,
+    dt: float = 1e-9,
+):
 
+    pulse = (
+        [0] * lpad
+        + [A] * t1
+        + [B] * t2
+        + [A] * t1
+        + [0] * rpad
+    )
+
+    timesteps = np.arange(len(pulse)) * dt
+
+    return timesteps, pulse
+
+def double_square_ramped(
+    t1: int,
+    t2: int,
+    outer_ramp: int,
+    inner_ramp: int,
+    lpad: int = 0,
+    rpad: int = 0,
+    A: float = 1.0,
+    B: float = 0.4,
+    dt: float = 1e-9,
+):
+
+    def ramp(start, stop, length):
+        return start + (stop - start) * 0.5 * (1 - np.cos(np.linspace(0, np.pi, length)))
+
+    pulse = np.concatenate((
+        np.zeros(lpad),
+        ramp(0, A, outer_ramp),
+        np.full(t1, A),
+        ramp(A, B, inner_ramp),
+        np.full(t2, B),
+        ramp(B, A, inner_ramp),
+        np.full(t1, A),
+        ramp(A, 0, outer_ramp),
+        np.zeros(rpad),
+    ))
+
+    return np.arange(len(pulse)) * dt, pulse
+
+def plot_pulse(timesteps, pulse, title="Pulse"):
+    """
+    Plot a pulse waveform.
+    """
+    plt.figure(figsize=(8, 3))
+    plt.plot(timesteps, pulse, linewidth=2)
+    plt.xlabel("Time (s)")
+    plt.ylabel("Amplitude")
+    plt.title(title)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+PLOT_PULSE = True
+
+if __name__ == "__main__" and PLOT_PULSE:
+
+    ts, pulse = double_square_ramped(
+        t1=2000,
+        t2=5000,
+        outer_ramp=400,
+        inner_ramp=200,
+        lpad=800,
+        rpad=1000,
+        A=1,
+        B=0.4,
+    )
+
+    plot_pulse(ts, pulse, title="Double Square Pulse")
 # import matplotlib.pyplot as plt
 
 # ts, pulse = gaussian_pulse(

@@ -10,39 +10,68 @@ from pulses import (
     constant_cosine,
     constant_cosine_reset,
     gaussian_pulse,
+    double_square,
+    double_square_ramped
 )
 from utils import PulseType, SweepType
 
-EXISTING_FILTER_PATH = "filters/pi_scope_filter_20230725_IIR_FIR_6th.pickle"
+filter_name = "Large_1"
+#EXISTING_FILTER_PATH = "filters/" + filter_name + ".pickle"
+EXISTING_FILTER_PATH = "E:/CQT/Fast Flux/Pre-distortion/filters/" + filter_name + ".pickle"
+
+
+
 
 ### Saving options ###
-SAVE_PREDISTORTED_PULSE = 1
-SAVE_PATH = "./"
+SAVE_PREDISTORTED_PULSE = 0
+SAVE_PATH = "numerical_pulses/"
+SAVE_PATH_direct_pulse = "ready_to_go_pulses/"
 
 ### Pulse generation options ###
 PULSE_TYPE = PulseType.SQUARE_HOLD
+# PULSE_TYPE = PulseType.CUSTOM
 BATCH_NORMALIZATION = False
 
 ## Construct parameter sweep ##
 # NOTE: ALL the params needed to construct the pulse must be defined in either CONSTANT_PARAMS or SWEEP_PARAM. See the individual generate_<pulse_type>_pulse functions for inofrmation on what parameters are needed.
+# DO_PARAM_SWEEP = {"True"}
+# CONSTANT_PARAMS = {"on_time": 20, "hold_time": 1200,}  # 1800
+# SWEEP_PARAM = {
+#     "name": "lpad",
+#     "type": SweepType.VALUES,
+#     "values": np.arange(40, 540, 100),  # [2000, 4000, 5000], #ns
+# }
 DO_PARAM_SWEEP = False
-CONSTANT_PARAMS = {"lpad": 1000, "hold_time": 1200,}  # 1800
-SWEEP_PARAM = {
-    "name": "on_time",
-    "type": SweepType.VALUES,
-    "values": np.arange(4, 350, 4),  # [2000, 4000, 5000], #ns
-}
-
+CONSTANT_PARAMS = {"on_time": 7_000, "hold_time": 1_000,}  # 1800
+SWEEP_PARAM = {}
 
 ## Use your own pulse parameters ##
 # NOTE: This will be ignored if DO_PARAM_SWEEP is set to True
 PULSE_PARAMS = [
     {
-        "lpad": 160,
-        "on_time": 300,  # ns
-        "hold_time": 1200,
+        "lpad": 10,
+        "on_time": 8_000,  # ns
+        "hold_time": 1_000,
     },
 ]
+
+# PULSE_PARAMS = [
+#     {
+#         "lpad": 5000,
+#         "t1": 2000,
+#         "t2": 10_000,
+#         "outer_ramp":400,
+#         "inner_ramp":200,
+#         "rpad": 5000,
+#         "A": 0.0,
+#         "B": 10,
+#     },
+# ]
+# PULSE_PARAMS = [
+#     {
+#         "path": "numerical_pulses/Fixed_L2_15_us.npz",
+#     },
+# ]
 
 ### Misc Options ###
 SAMPLING_PERIOD = 1e-9  # It is unlikely that this should ever be changed
@@ -56,10 +85,11 @@ def predistort_pulse(iir_filters, fir_filters, pulse, norm=False):
         curr_filter = iir_filters[i]["correction"]
         _, pulse = dlsim(curr_filter, pulse, t=pulse_time_points)
 
-    for i in range(len(fir_filters)):
-        pulse = np.squeeze(pulse)
-        filter_values = fir_filters[i]
-        pulse = convolve(pulse, filter_values, mode="same")
+    # No FIR here
+    # for i in range(len(fir_filters)):
+    #     pulse = np.squeeze(pulse)
+    #     filter_values = fir_filters[i]
+    #     pulse = convolve(pulse, filter_values, mode="same")
 
     if norm:
         pulse = pulse / (
@@ -127,11 +157,33 @@ def generate_gaussian_pulse(pulse_params):
     pulse = gaussian_pulse(sigma=sigma, chop=chop, lpad=lpad, rpad=rpad)
     return pulse
 
+def generate_double_square_pulse(pulse_params):
+    t1 = pulse_params["t1"]
+    t2 = pulse_params["t2"]
+    lpad = pulse_params["lpad"]
+    rpad = pulse_params["rpad"]
+    A = pulse_params["A"]
+    B = pulse_params["B"]
+    pulse = double_square(t1=t1, t2=t2, lpad=lpad, rpad=rpad, A=A, B=B)
+    return pulse
+
+def generate_double_square_ramped_pulse(pulse_params):
+    t1 = pulse_params["t1"]
+    t2 = pulse_params["t2"]
+    inner_ramp=pulse_params["inner_ramp"]
+    outer_ramp=pulse_params["outer_ramp"]
+    lpad = pulse_params["lpad"]
+    rpad = pulse_params["rpad"]
+    A = pulse_params["A"]
+    B = pulse_params["B"]
+    pulse = double_square_ramped(t1=t1, t2=t2, inner_ramp=inner_ramp, outer_ramp=outer_ramp,lpad=lpad, rpad=rpad, A=A, B=B)
+    return pulse
+
 
 def load_existing_pulse(pulse_params):
     path = pulse_params["path"]
     pulse_file = np.load(path)
-    pulse = pulse_file["I_quad"]
+    pulse = pulse_file["I_quad"].flatten()
     return pulse
 
 
@@ -149,7 +201,11 @@ def generate_predistorted_pulse(
     elif pulse_type == PulseType.CONSTANT_COSINE_RESET:
         _, pulse = generate_constant_cosine_reset(pulse_params=pulse_params)
     elif pulse_type == PulseType.CUSTOM:
-        _, pulse = load_existing_pulse(pulse_params=pulse_params)
+        pulse = load_existing_pulse(pulse_params=pulse_params)
+    elif pulse_type == PulseType.DOUBLE_SQUARE:
+        _, pulse = generate_double_square_pulse(pulse_params=pulse_params)
+    elif pulse_type == PulseType.DOUBLE_SQUARE_RAMPED:
+        _, pulse = generate_double_square_ramped_pulse(pulse_params=pulse_params)
     else:
         raise (f"Pulse type {pulse_type} not yet implemented")
 
@@ -182,6 +238,9 @@ if __name__ == "__main__":
         existing_filters = pickle.load(filter_file)
     iir_filters = existing_filters["iir_filters"]
     fir_filters = existing_filters["fir_filters"]
+
+    print(iir_filters[0].keys())
+    print(iir_filters[0])
 
     print("--------- GENERATING PREDISTORTED PULSES ----------")
     if DO_PARAM_SWEEP:
@@ -224,4 +283,13 @@ if __name__ == "__main__":
                 dt=[1],
             )
             print(f"Waveform saved to {save_location}")
+
+            save_location_ = f"{SAVE_PATH_direct_pulse}/{filter_name}_15us_double_filter.npy"
+            if DO_PARAM_SWEEP:
+                save_location_ = f"{SAVE_PATH}/square_IIR_FIR_{SWEEP_PARAM['name']}_{pulse_param_list[i][SWEEP_PARAM['name']]}ns.npy"
+            np.save(
+                save_location_,
+                predistorted_pulse.flatten(),
+            )
+            print(f"Sexy Waveform saved to {save_location_}")
     print("---------------------- DONE -----------------------")

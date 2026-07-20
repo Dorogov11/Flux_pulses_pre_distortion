@@ -7,7 +7,9 @@ class PulseType(Enum):
     GAUSSIAN = 2
     CONSTANT_COSINE = 3
     CONSTANT_COSINE_RESET = 4
-    CUSTOM = 5
+    DOUBLE_SQUARE = 5
+    DOUBLE_SQUARE_RAMPED = 6
+    CUSTOM = 7
 
 
 class DataType(Enum):
