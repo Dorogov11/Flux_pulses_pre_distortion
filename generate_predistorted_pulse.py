@@ -239,9 +239,6 @@ if __name__ == "__main__":
     iir_filters = existing_filters["iir_filters"]
     fir_filters = existing_filters["fir_filters"]
 
-    print(iir_filters[0].keys())
-    print(iir_filters[0])
-
     print("--------- GENERATING PREDISTORTED PULSES ----------")
     if DO_PARAM_SWEEP:
         pulse_param_list = build_pulse_param_list(CONSTANT_PARAMS, SWEEP_PARAM)
